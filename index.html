@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CSE 160 Assignment 4 — Phong Lighting</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d0e14;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #d0d8e8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      gap: 10px;
+    }
+
+    h1 {
+      font-size: 14px;
+      color: #6a8fff;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: normal;
+    }
+
+    #main-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    /* ---- Canvas ---- */
+    #canvasWrap { position: relative; display: inline-block; }
+    canvas#webgl {
+      display: block;
+      border: 2px solid #1e2035;
+      cursor: crosshair;
+    }
+    #crosshair {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px; height: 16px; pointer-events: none;
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute; background: rgba(255,255,255,0.6);
+    }
+    #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+    #crosshair::after  { height: 2px; width: 100%; top: 50%;  transform: translateY(-50%); }
+
+    /* ---- Controls panel ---- */
+    #panel {
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .section {
+      background: #12141f;
+      border: 1px solid #1e2240;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #4466cc;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #1e2240;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    button {
+      flex: 1;
+      padding: 5px 4px;
+      border-radius: 4px;
+      border: 1px solid #2a3050;
+      background: #1a1d2e;
+      color: #7080a0;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    button:hover  { background: #1e2240; color: #99b0d0; }
+    button.active { background: #1e3366; border-color: #3a6acc; color: #88bbff; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+
+    .slider-label {
+      width: 30px;
+      font-size: 10px;
+      color: #5570a0;
+      flex-shrink: 0;
+    }
+
+    input[type=range] {
+      flex: 1;
+      height: 3px;
+      accent-color: #3a6acc;
+      cursor: pointer;
+    }
+
+    .slider-val {
+      width: 32px;
+      font-size: 10px;
+      color: #6080b0;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ---- HUD ---- */
+    #hud {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      color: #445566;
+    }
+    #hud span { background: #12141f; border: 1px solid #1e2240; padding: 2px 8px; border-radius: 3px; }
+    #fps { color: #4488cc; }
+
+    /* ---- Controls hint ---- */
+    #hint {
+      font-size: 10px;
+      color: #334;
+      text-align: center;
+    }
+    #hint b { color: #446; }
+  </style>
+</head>
+<body>
+
+  <h1>CSE 160 · Asg 4 · Phong Lighting</h1>
+
+  <div id="hud">
+    <span id="fps">FPS: --</span>
+    <span>Click canvas → mouse look</span>
+  </div>
+
+  <div id="main-row">
+
+    <!-- WebGL canvas -->
+    <div id="canvasWrap">
+      <canvas id="webgl" width="720" height="540"></canvas>
+      <div id="crosshair"></div>
+    </div>
+
+    <!-- Controls panel -->
+    <div id="panel">
+
+      <!-- Point Light -->
+      <div class="section">
+        <div class="section-title">Point Light</div>
+        <div class="btn-row">
+          <button id="btn-light-on"  class="active">ON</button>
+          <button id="btn-light-off">OFF</button>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">X</span>
+          <input id="slider-light-x" type="range" min="0" max="31" step="0.1" value="16"
+                 oninput="document.getElementById('val-lx').textContent=parseFloat(this.value).toFixed(1)">
+          <span class="slider-val" id="val-lx">16.0</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Y</span>
+          <input id="slider-light-y" type="range" min="0" max="12" step="0.1" value="6"
+                 oninput="document.getElementById('val-ly').textContent=parseFloat(this.value).toFixed(1)">
+          <span class="slider-val" id="val-ly">6.0</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Z</span>
+          <input id="slider-light-z" type="range" min="0" max="31" step="0.1" value="16"
+                 oninput="document.getElementById('val-lz').textContent=parseFloat(this.value).toFixed(1)">
+          <span class="slider-val" id="val-lz">16.0</span>
+        </div>
+      </div>
+
+      <!-- Light Color -->
+      <div class="section">
+        <div class="section-title">Light Color</div>
+        <div class="slider-row">
+          <span class="slider-label">R</span>
+          <input id="slider-light-r" type="range" min="0" max="1" step="0.01" value="1.0"
+                 oninput="document.getElementById('val-lr').textContent=parseFloat(this.value).toFixed(2)">
+          <span class="slider-val" id="val-lr">1.00</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">G</span>
+          <input id="slider-light-g" type="range" min="0" max="1" step="0.01" value="0.95"
+                 oninput="document.getElementById('val-lg').textContent=parseFloat(this.value).toFixed(2)">
+          <span class="slider-val" id="val-lg">0.95</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">B</span>
+          <input id="slider-light-b" type="range" min="0" max="1" step="0.01" value="0.8"
+                 oninput="document.getElementById('val-lb').textContent=parseFloat(this.value).toFixed(2)">
+          <span class="slider-val" id="val-lb">0.80</span>
+        </div>
+      </div>
+
+      <!-- Spotlight -->
+      <div class="section">
+        <div class="section-title">Spotlight (Blue, Sweeping)</div>
+        <div class="btn-row">
+          <button id="btn-spot-on" class="active">ON</button>
+          <button id="btn-spot-off">OFF</button>
+        </div>
+      </div>
+
+      <!-- Normal Visualization -->
+      <div class="section">
+        <div class="section-title">Normal Visualization</div>
+        <div class="btn-row">
+          <button id="btn-norm-on">ON</button>
+          <button id="btn-norm-off" class="active">OFF</button>
+        </div>
+      </div>
+
+      <!-- Phong Coefficients -->
+      <div class="section">
+        <div class="section-title">Phong Coefficients</div>
+        <div class="slider-row">
+          <span class="slider-label">Ka</span>
+          <input id="slider-ka" type="range" min="0" max="1" step="0.01" value="0.25"
+                 oninput="document.getElementById('val-ka').textContent=parseFloat(this.value).toFixed(2)">
+          <span class="slider-val" id="val-ka">0.25</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Kd</span>
+          <input id="slider-kd" type="range" min="0" max="1" step="0.01" value="0.8"
+                 oninput="document.getElementById('val-kd').textContent=parseFloat(this.value).toFixed(2)">
+          <span class="slider-val" id="val-kd">0.80</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Ks</span>
+          <input id="slider-ks" type="range" min="0" max="1" step="0.01" value="0.5"
+                 oninput="document.getElementById('val-ks').textContent=parseFloat(this.value).toFixed(2)">
+          <span class="slider-val" id="val-ks">0.50</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Shin</span>
+          <input id="slider-shin" type="range" min="1" max="128" step="1" value="32"
+                 oninput="document.getElementById('val-sh').textContent=this.value">
+          <span class="slider-val" id="val-sh">32</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="hint">
+    <b>WASD</b> move &nbsp;·&nbsp; <b>Q/E</b> turn &nbsp;·&nbsp;
+    <b>Mouse</b> look (click canvas first) &nbsp;·&nbsp;
+    Light animates in a circle — drag X slider to take manual control
+  </div>
+
+  <script src="lib/cuon-matrix.js"></script>
+  <script src="cube.js"></script>
+  <script src="sphere.js"></script>
+  <script src="objmodel.js"></script>
+  <script src="camera.js"></script>
+  <script src="world.js"></script>
+  <script> window.onload = main; </script>
+</body>
+</html>
